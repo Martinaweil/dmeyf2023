@@ -1,7 +1,7 @@
 instrucciones competencia 2:
 
--se crea la clase ternaria
+-se crea la clase ternaria con script clase_ternaria.jl
 
--se agrega atributos con script attributes.ipynb
+-se agregan atributos con script attributes.ipynb
 
--se corre script z824_lightgbm_final.r
+-se corre script z824_lightgbm_final.r con parametros predeterminados
