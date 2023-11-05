@@ -14,17 +14,22 @@ require("lightgbm")
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
-PARAM$experimento <- "KA8240"
+PARAM$experimento <- "exp_1"
 
-PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
+PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
 # meses donde se entrena el modelo
-PARAM$input$training <- c(202012, 202101, 202102, 202103, 202104, 202105)
+PARAM$input$training <- c(202101,202102,202103,202104,202105,202106)
 PARAM$input$future <- c(202107) # meses donde se aplica el modelo
+initial_seed <- 100019
+num_seeds <- 50
+seeds <- seq(initial_seed, initial_seed + num_seeds - 1)
+PARAM$finalmodel$semilla <- seeds
 
-PARAM$finalmodel$semilla <- 102191
 
-# hiperparametros intencionalmente NO optimos
+
+
+# hiperparametros obtenidos en las OB
 PARAM$finalmodel$optim$num_iterations <- 730
 PARAM$finalmodel$optim$learning_rate <- 0.0323601846272594
 PARAM$finalmodel$optim$feature_fraction <- 0.909773795582897
@@ -59,9 +64,9 @@ PARAM$finalmodel$lgb_basicos <- list(
   max_drop = 50, # <=0 means no limit
   skip_drop = 0.5, # 0.0 <= skip_drop <= 1.0
 
-  extra_trees = TRUE, # Magic Sauce
+  extra_trees = TRUE # Magic Sauce
 
-  seed = PARAM$finalmodel$semilla
+  #,seed = PARAM$finalmodel$semilla
 )
 
 
@@ -86,6 +91,14 @@ dataset <- fread(PARAM$input$dataset, stringsAsFactors = TRUE)
 #   aqui deben calcularse los  lags y  lag_delta
 #   Sin lags no hay paraiso ! corta la bocha
 #   https://rdrr.io/cran/data.table/man/shift.html
+col_original <- setdiff(colnames(dataset), c("numero_de_cliente","foto_mes","clase_ternaria"))
+# LAGS
+lags <- c(1, 3, 6)
+for (i in lags){
+  dataset[, paste0("lag_", i, "_", col_original) := lapply(.SD, function(x) shift(x, type = "lag", n = i)), 
+          by = numero_de_cliente, .SDcols = columnas_originales]
+}
+
 
 
 #--------------------------------------
@@ -118,34 +131,40 @@ setwd(paste0("./exp/", PARAM$experimento, "/"))
 
 
 
-# dejo los datos en el formato que necesita LightGBM
-dtrain <- lgb.Dataset(
-  data = data.matrix(dataset[train == 1L, campos_buenos, with = FALSE]),
-  label = dataset[train == 1L, clase01]
-)
+# Loop over each seed and perform training
+for (seed in PARAM$finalmodel$semilla) {
+  # Set the seed for this iteration
+  set.seed(seed)
+  
+  # dejo los datos en the format that LightGBM needs
+  dtrain <- lgb.Dataset(
+    data = data.matrix(dataset[train == 1L, campos_buenos, with = FALSE]),
+    label = dataset[train == 1L, clase01]
+  )
+  
+  # generate the model
+  param_completo <- c(PARAM$finalmodel$lgb_basicos,
+                      PARAM$finalmodel$optim,
+                      seed = seed)  # Update the seed for each model
+  modelo <- lgb.train(
+    data = dtrain,
+    param = param_completo
+  )
+  
+  tb_importancia <- as.data.table(lgb.importance(modelo))
+  archivo_importancia <- paste0("impo_", seed, ".txt")
+  
+  fwrite(tb_importancia,
+         file = archivo_importancia,
+         sep = "\t"
+  )
+  
+  # Save the trained model for ensemble (you can choose your method of saving)
+  saveRDS(modelo, file = paste0("model_", seed, ".rds"))
+}
 
 
-# genero el modelo
-param_completo <- c(PARAM$finalmodel$lgb_basicos,
-  PARAM$finalmodel$optim)
-
-modelo <- lgb.train(
-  data = dtrain,
-  param = param_completo,
-)
-
-#--------------------------------------
-# ahora imprimo la importancia de variables
-tb_importancia <- as.data.table(lgb.importance(modelo))
-archivo_importancia <- "impo.txt"
-
-fwrite(tb_importancia,
-  file = archivo_importancia,
-  sep = "\t"
-)
-
-#--------------------------------------
-
+#ACA LLEGUE 5-11 FALTA ENSAMBLAR
 
 # aplico el modelo a los datos sin clase
 dapply <- dataset[foto_mes == PARAM$input$future]

@@ -5,7 +5,7 @@ Pkg.add("GZip")
 
 using CSV,  DataFrames,  GZip
 
-df = CSV.read( GZip.open( "/home/martiweil96/buckets/b1/datasets/competencia_02_crudo.csv.gz"), DataFrame )
+df = CSV.read( GZip.open( "/home/martiweil96/buckets/b1/datasets/competencia_03.csv.gz"), DataFrame )
 
 periodo_anterior(x::Integer) =  x % 100 > 1  ?  x-1  : 12 + (div(x,100) -1) * 100
 sort!(df, [:numero_de_cliente, :foto_mes])
