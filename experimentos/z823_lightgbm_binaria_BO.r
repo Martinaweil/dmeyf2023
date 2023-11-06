@@ -303,7 +303,7 @@ col_original <- setdiff(colnames(dataset), c("numero_de_cliente","foto_mes","cla
 lags <- c(1, 3, 6)
 for (i in lags){
   dataset[, paste0("lag_", i, "_", col_original) := lapply(.SD, function(x) shift(x, type = "lag", n = i)), 
-          by = numero_de_cliente, .SDcols = columnas_originales]
+          by = numero_de_cliente, .SDcols = col_original]
 }
 
 
