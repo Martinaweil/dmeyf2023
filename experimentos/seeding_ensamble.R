@@ -37,3 +37,19 @@ for (i in 2:length(seeds_to_ensemble)) {  # Start from the second seed
 
 # Save the ensembled results
 fwrite(ensemble_results, file = "ensemble_results.txt", sep = "\t")
+setorder(ensemble_results, -ensemble_prob)
+cortes <- seq(8000, 15000, by = 500)
+for (envios in cortes) {
+  ensemble_results[, Predicted := 0L]
+  ensemble_results[1:envios, Predicted := 1L]
+  
+  fwrite(ensemble_results[, list(numero_de_cliente, Predicted)],
+         file = paste0("entrega_", envios, ".csv"),
+         sep = ","
+  )
+}
+
+cat("\n\nLa generacion de los archivos para Kaggle ha terminado\n")
+
+
+
