@@ -186,22 +186,5 @@ for (seed in PARAM$finalmodel$semilla) {
   setorder(tb_entrega, -prob)
 }
 
-                                                                                                                                      
-# genero archivos con los  "envios" mejores
-# deben subirse "inteligentemente" a Kaggle para no malgastar submits
-# si la palabra inteligentemente no le significa nada aun
-# suba TODOS los archivos a Kaggle
-# espera a la siguiente clase sincronica en donde el tema sera explicado
 
-cortes <- seq(8000, 15000, by = 500)
-for (envios in cortes) {
-  tb_entrega[, Predicted := 0L]
-  tb_entrega[1:envios, Predicted := 1L]
 
-  fwrite(tb_entrega[, list(numero_de_cliente, Predicted)],
-    file = paste0(PARAM$experimento, "_", envios, ".csv"),
-    sep = ","
-  )
-}
-
-cat("\n\nLa generacion de los archivos para Kaggle ha terminado\n")
