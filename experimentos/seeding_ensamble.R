@@ -69,9 +69,9 @@ for (ensamble_idx in 1:num_ensambles) {
   ensamble_results[ensamble_idx] <- realizar_ensamble(sampled_seeds)
 }
 
-# Ahora, ensamble_results contiene las ganancias para cada ensamble
-
-# Puedes comparar los resultados o realizar el análisis que desees con ensamble_results.
+# Crear un gráfico de líneas para mostrar la evolución de las ganancias a lo largo de los ensambles
+plot(1:num_ensambles, ensamble_results, type = "o", xlab = "Ensamble", ylab = "Ganancia Total")
+lines(1:num_ensambles, ensamble_results, col = "blue")
 
 
 
