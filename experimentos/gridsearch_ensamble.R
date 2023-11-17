@@ -1,33 +1,90 @@
+# para correr el Google Cloud
+#   8 vCPU
+#  64 GB memoria RAM
+
+
+# limpio la memoria
+rm(list = ls()) # remove all objects
+gc() # garbage collection
 
 require("data.table")
-require("rlist")
-
 require("lightgbm")
-library(lightgbm)
 
-# Definir los hiperparámetros y sus posibles valores
-param_grid <- list(
-  learning_rate = c(0.01, 0.05, 0.1,0.5,1),
-  num_leaves = c(15, 31, 63,40,80),
-  feature_fraction = c(0.8, 0.6,0.4,0.2),
-  min_data_in_leaf = c(3000,5000,6000,7000,8000)
-  
-)
 
-# Datos de ejemplo (reemplaza con tus propios datos)
+# defino los parametros de la corrida, en una lista, la variable global  PARAM
+#  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
-dataset <- fread("./datasets/competencia_03.csv.gz")
-PARAM$input$testing <- c(202106)
-PARAM$input$validation <- c(202105)
-PARAM$input$training <- c(202011,202012,202101,202102,202103,202104)
+PARAM$experimento <- "gridsearch_1"
 
-# Inicializar variables para almacenar los resultados
-best_params <- NULL
-best_auc <- -Inf
+PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
+# meses donde se entrena el modelo
+PARAM$input$training <- c(202101,202102,202103,202104,202105)
+PARAM$input$future <- c(202106) # meses donde se testea
 initial_seed <- 100019
 num_seeds <- 30
 seeds <- seq(initial_seed, initial_seed + num_seeds - 1)
+PARAM$finalmodel$semilla <- seeds
+
+
+
+
+# hiperparametros obtenidos en las OB
+PARAM$finalmodel$optim$num_iterations <- c(30,20,100,300)
+PARAM$finalmodel$optim$learning_rate <- c(0.01, 0.05, 0.1,0.5,1)
+PARAM$finalmodel$optim$feature_fraction <- c(0.8, 0.6,0.4,0.2)
+PARAM$finalmodel$optim$min_data_in_leaf <- c(3000,5000,6000,7000,8000)
+PARAM$finalmodel$optim$num_leaves <- c(15, 31, 63,40,80)
+
+
+# Hiperparametros FIJOS de  lightgbm
+PARAM$finalmodel$lgb_basicos <- list(
+  boosting = "gbdt", # puede ir  dart  , ni pruebe random_forest
+  objective = "binary",
+  metric = "custom",
+  first_metric_only = TRUE,
+  boost_from_average = TRUE,
+  feature_pre_filter = FALSE,
+  force_row_wise = TRUE, # para reducir warnings
+  verbosity = -100,
+  max_depth = -1L, # -1 significa no limitar,  por ahora lo dejo fijo
+  min_gain_to_split = 0.0, # min_gain_to_split >= 0.0
+  min_sum_hessian_in_leaf = 0.001, #  min_sum_hessian_in_leaf >= 0.0
+  lambda_l1 = 0.0, # lambda_l1 >= 0.0
+  lambda_l2 = 0.0, # lambda_l2 >= 0.0
+  max_bin = 31L, # lo debo dejar fijo, no participa de la BO
+  
+  bagging_fraction = 1.0, # 0.0 < bagging_fraction <= 1.0
+  pos_bagging_fraction = 1.0, # 0.0 < pos_bagging_fraction <= 1.0
+  neg_bagging_fraction = 1.0, # 0.0 < neg_bagging_fraction <= 1.0
+  is_unbalance = FALSE, #
+  scale_pos_weight = 1.0, # scale_pos_weight > 0.0
+  
+  drop_rate = 0.1, # 0.0 < neg_bagging_fraction <= 1.0
+  max_drop = 50, # <=0 means no limit
+  skip_drop = 0.5, # 0.0 <= skip_drop <= 1.0
+  
+  extra_trees = TRUE # Magic Sauce
+  
+  #,seed = PARAM$finalmodel$semilla
+)
+
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# Aqui empieza el programa
+setwd("~/buckets/b1")
+
+# cargo el dataset donde voy a entrenar
+dataset <- fread(PARAM$input$dataset, stringsAsFactors = TRUE)
+
+
+# Catastrophe Analysis  -------------------------------------------------------
+# deben ir cosas de este estilo
+#   dataset[foto_mes == 202006, active_quarter := NA]
+
+# Data Drifting
+# por ahora, no hago nada
 
 
 # Feature Engineering Historico  ----------------------------------------------
@@ -43,121 +100,96 @@ for (i in lags){
 }
 
 
+
+#--------------------------------------
+
+# paso la clase a binaria que tome valores {0,1}  enteros
+# set trabaja con la clase  POS = { BAJA+1, BAJA+2 }
+# esta estrategia es MUY importante
+dataset[, clase01 := ifelse(clase_ternaria %in% c("BAJA+2", "BAJA+1"), 1L, 0L)]
+
+#--------------------------------------
+
 # los campos que se van a utilizar
-campos_buenos <- setdiff(
-  colnames(dataset),
-  c("clase_ternaria", "clase01", "azar", "training")
-)
+campos_buenos <- setdiff(colnames(dataset), c("clase_ternaria", "clase01"))
 
-# defino los datos que forma parte del training
-# aqui se hace el undersampling de los CONTINUA
-set.seed(PARAM$trainingstrategy$semilla_azar)
-dataset[, azar := runif(nrow(dataset))]
-dataset[, training := 0L]
-dataset[
-  foto_mes %in% PARAM$input$training &
-    (azar <= PARAM$trainingstrategy$undersampling | clase_ternaria %in% c("BAJA+1", "BAJA+2")),
-  training := 1L
-]
-
-# dejo los datos en el formato que necesita LightGBM
-dtrain <- lgb.Dataset(
-  data = data.matrix(dataset[training == 1L, campos_buenos, with = FALSE]),
-  label = dataset[training == 1L, clase01],
-  weight = dataset[training == 1L, 
-                   ifelse(clase_ternaria == "BAJA+2", 1.0000001, 
-                          ifelse(clase_ternaria == "BAJA+1", 1.0, 1.0))],
-  free_raw_data = FALSE
-)
+#--------------------------------------
 
 
-# defino los datos que forman parte de validation
-#  no hay undersampling
-dataset[, validation := 0L]
-dataset[ foto_mes %in% PARAM$input$validation,  validation := 1L]
+# establezco donde entreno
+dataset[, train := 0L]
+dataset[foto_mes %in% PARAM$input$training, train := 1L]
 
-dvalidate <- lgb.Dataset(
-  data = data.matrix(dataset[validation == 1L, campos_buenos, with = FALSE]),
-  label = dataset[validation == 1L, clase01],
-  weight = dataset[validation == 1L, 
-                   ifelse(clase_ternaria == "BAJA+2", 1.0000001, 
-                          ifelse(clase_ternaria == "BAJA+1", 1.0, 1.0))],
-  free_raw_data = FALSE
-)
+#--------------------------------------
+# creo las carpetas donde van los resultados
+# creo la carpeta donde va el experimento
+dir.create("./exp/", showWarnings = FALSE)
+dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
 
-
-# defino los datos de testing
-dataset[, testing := 0L]
-dataset[ foto_mes %in% PARAM$input$testing,  testing := 1L]
+# Establezco el Working Directory DEL EXPERIMENTO
+setwd(paste0("./exp/", PARAM$experimento, "/"))
 
 
-dataset_test <- dataset[testing == 1, ]
+#preparo el dataset para testear
+dapply <- dataset[foto_mes == PARAM$input$future]
+dataset_test <- data.matrix(dapply[, campos_buenos, with = FALSE])
 
-# libero espacio
-rm(dataset)
-gc()
-
-entrenar_modelo<-function(){
-  for (seed in seeds){
-    set.seed(seed)
-    param_completo <- c(params,
-                        seed = seed) 
-    model <- lgb.train(
-      params = param_completo,
-      data = dtrain,
-      valids = list(valid = dvalidate),
-      nrounds = 100,  # Número de iteraciones
-      verbose = -1
-    )
-    dapply <- dataset[foto_mes == PARAM$input$future]
-    
-    prediccion <- predict(
-      model,
-      data.matrix(dataset_test[, campos_buenos, with = FALSE])
-    )
-    
-  }
+# Loop over each seed and perform training
+for (ni in PARAM$finalmodel$optim$num_iterations) {
+  for (ff in PARAM$finalmodel$optim$feature_fraction) {
+    for (md in PARAM$finalmodel$optim$min_data_in_leaf) {
+      for (nl in PARAM$finalmodel$optim$num_leaves) {
+        for (lr in PPARAM$finalmodel$optim$learning_rate) {
+          dir.create(paste0("./exp/", lr,'_',nl,'_',md,'_',ff,'_',ni, "/"), showWarnings = FALSE)
+          
+          # Establezco el Working Directory DEL EXPERIMENTO
+          setwd(paste0("./exp/", PARAM$experimento, "/"))
+for (seed in PARAM$finalmodel$semilla) {
+  # Set the seed for this iteration
+  set.seed(seed)
+  
+  # dejo los datos en the format that LightGBM needs
+  dtrain <- lgb.Dataset(
+    data = data.matrix(dataset[train == 1L, campos_buenos, with = FALSE]),
+    label = dataset[train == 1L, clase01]
+  )
+  
+  # generate the model
+  param_completo <- c(PARAM$finalmodel$lgb_basicos,
+                      learning_rate=lr,
+                      num_iterations=ni,
+                      min_data_in_leaf=md,
+                      feature_fraction=ff,
+                      num_leaves=nl
+                      seed = seed)  # Update the seed for each model
+  modelo <- lgb.train(
+    data = dtrain,
+    param = param_completo
+  )
+  
+  
+  
+  # aplico el modelo a los datos nuevos
+  prediccion <- predict(
+    modelo,
+    dataset_test)
+  )
+  
+  # genero la tabla de entrega
+  tb_entrega <- dapply[, list(numero_de_cliente, foto_mes)]
+  tb_entrega[, prob := prediccion]
+  
+  # grabo las probabilidad del modelo
+  fwrite(tb_entrega,
+         file = paste0("prediccion_", seed, ".txt"),
+         sep = "\t"
+  )
+  
+  # ordeno por probabilidad descendente
+  setorder(tb_entrega, -prob)
 }
-
-# Bucle sobre todas las combinaciones de hiperparámetros
-for (lr in param_grid$learning_rate) {
-  for (nl in param_grid$num_leaves) {
-    for (md in param_grid$max_depth) {
-      for (mc in param_grid$min_child_samples) {
-        
-        # Configurar hiperparámetros
-        params <- list(
-          objective = "binary",
-          metric = "binary_logloss",
-          learning_rate = lr,
-          num_leaves = nl,
-          max_depth = md,
-          min_child_samples = mc
-        )
-        
-        # Entrenar el modelo con los hiperparámetros actuales
-        model <- lgb.train(
-          params = params,
-          data = train_data,
-          nrounds = 100,  # Número de iteraciones
-          verbose = -1
-        )
-        
-        # Evaluar el modelo en algún conjunto de validación o realizar validación cruzada
-        
-        # Aquí asumimos que estás utilizando una métrica como el AUC
-        auc <- some_evaluation_metric(model)
-        
-        # Actualizar los mejores resultados si es necesario
-        if (auc > best_auc) {
-          best_auc <- auc
-          best_params <- params
-        }
       }
     }
   }
+  }
 }
-
-# Imprimir los mejores resultados
-cat("Mejores hiperparámetros:", best_params, "\n")
-cat("Mejor AUC:", best_auc, "\n")
