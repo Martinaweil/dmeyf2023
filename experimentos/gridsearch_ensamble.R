@@ -29,9 +29,9 @@ PARAM$finalmodel$semilla <- seeds
 
 
 
-# hiperparametros obtenidos en las OB
-PARAM$finalmodel$optim$num_iterations <- c(30,20,100,300)
-PARAM$finalmodel$optim$learning_rate <- c(0.01, 0.05, 0.1,0.5,1)
+# hiperparametros que vamos a probar
+PARAM$finalmodel$optim$num_iterations <- c(20)
+PARAM$finalmodel$optim$learning_rate <- c(1)
 PARAM$finalmodel$optim$feature_fraction <- c(0.8, 0.6,0.4,0.2)
 PARAM$finalmodel$optim$min_data_in_leaf <- c(3000,5000,6000,7000,8000)
 PARAM$finalmodel$optim$num_leaves <- c(15, 31, 63,40,80)
@@ -145,7 +145,7 @@ for (ni in PARAM$finalmodel$optim$num_iterations) {
           # Establezco el Working Directory DEL EXPERIMENTO
           setwd(paste0("./exp/gridsearch_1/", lr,"_",nl,"_",md,"_",ff,"_",ni, "/"))
           # genero la tabla de entrega
-          tb_entrega <- dapply[, list(numero_de_cliente, foto_mes)]
+          tb_entrega <- dapply[, list(numero_de_cliente, foto_mes,clase_ternaria)]
 for (seed in PARAM$finalmodel$semilla) {
   # Set the seed for this iteration
   set.seed(seed)
@@ -183,6 +183,18 @@ for (seed in PARAM$finalmodel$semilla) {
   
   
 }
+          #hago un promedio de las prob de cada semilla
+          tb_entrega[, ensemble_prob := rowMeans(.SD, na.rm = TRUE), .SDcols = grep("prediccion_", names(tb_entrega))]
+          setorder(tb_entrega, -ensemble_prob)
+          #envio 11mil estimulos
+          tb_entrega[, Predicted := 0L]
+          tb_entrega[1:11000, Predicted := 1L]
+          #calculo ganacia
+          tb_entrega[, ganancia := ifelse(Predicted == 1 & clase_ternaria == "BAJA+2", 273000,
+                                           ifelse(Predicted == 1 & clase_ternaria != "BAJA+2", -7000, 0))]
+          
+          total_gain <- sum(tb_entrega$ganancia)
+          return(total_gain)
           # grabo las probabilidad del modelo
           fwrite(tb_entrega,
                  file = paste0("prediccion", seed, ".txt"),
