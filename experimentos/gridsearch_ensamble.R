@@ -138,6 +138,7 @@ for (ni in PARAM$finalmodel$optim$num_iterations) {
     for (md in PARAM$finalmodel$optim$min_data_in_leaf) {
       for (nl in PARAM$finalmodel$optim$num_leaves) {
         for (lr in PARAM$finalmodel$optim$learning_rate) {
+          setwd("~/buckets/b1")
           dir.create(paste0("./exp/", PARAM$experimento, "/",lr,"_",nl,"_",md,"_",ff,"_",ni, "/"), showWarnings = TRUE)
         
           
@@ -180,8 +181,7 @@ for (seed in PARAM$finalmodel$semilla) {
   tb_entrega[, paste0("prediccion_", seed) := prediccion]
   
   
-  # ordeno por probabilidad descendente
-  setorder(tb_entrega, -prob)
+  
 }
           # grabo las probabilidad del modelo
           fwrite(tb_entrega,
