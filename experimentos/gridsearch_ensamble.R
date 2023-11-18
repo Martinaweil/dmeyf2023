@@ -132,18 +132,17 @@ dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
 dapply <- dataset[foto_mes == PARAM$input$future]
 dataset_test <- data.matrix(dapply[, campos_buenos, with = FALSE])
 
+
+# Crear un conjunto de datos para almacenar la ganancia total por combinación de hiperparámetros
+ganancia_por_hiperparametros <- data.table(hiperparametros = character(), ganancia_total = numeric())
+
 # Loop over each seed and perform training
 for (ni in PARAM$finalmodel$optim$num_iterations) {
   for (ff in PARAM$finalmodel$optim$feature_fraction) {
     for (md in PARAM$finalmodel$optim$min_data_in_leaf) {
       for (nl in PARAM$finalmodel$optim$num_leaves) {
         for (lr in PARAM$finalmodel$optim$learning_rate) {
-          setwd("~/buckets/b1")
-          dir.create(paste0("./exp/", PARAM$experimento, "/",lr,"_",nl,"_",md,"_",ff,"_",ni, "/"), showWarnings = TRUE)
-        
           
-          # Establezco el Working Directory DEL EXPERIMENTO
-          setwd(paste0("./exp/gridsearch_1/", lr,"_",nl,"_",md,"_",ff,"_",ni, "/"))
           # genero la tabla de entrega
           tb_entrega <- dapply[, list(numero_de_cliente, foto_mes,clase_ternaria)]
 for (seed in PARAM$finalmodel$semilla) {
@@ -189,19 +188,32 @@ for (seed in PARAM$finalmodel$semilla) {
           #envio 11mil estimulos
           tb_entrega[, Predicted := 0L]
           tb_entrega[1:11000, Predicted := 1L]
-          #calculo ganacia
+          #calculo ganancia
           tb_entrega[, ganancia := ifelse(Predicted == 1 & clase_ternaria == "BAJA+2", 273000,
                                            ifelse(Predicted == 1 & clase_ternaria != "BAJA+2", -7000, 0))]
           
           total_gain <- sum(tb_entrega$ganancia)
-          return(total_gain)
-          # grabo las probabilidad del modelo
-          fwrite(tb_entrega,
-                 file = paste0("prediccion", seed, ".txt"),
-                 sep = "\t"
-          )
+          ganancia_por_hiperparametros <- rbindlist(list(
+            ganancia_por_hiperparametros,
+            data.table(parametros = paste0(lr, "_", nl, "_", md, "_", ff, "_", ni), ganancia_total = total_gain)
+          ))
+          
+          
       }
     }
   }
   }
 }
+
+setwd("~/buckets/b1")
+dir.create("./exp/", showWarnings = FALSE)
+dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
+
+# Establezco el Working Directory DEL EXPERIMENTO
+setwd(paste0("./exp/", PARAM$experimento, "/"))
+
+
+# grabo las ganancias
+fwrite(ganancia_por_hiperparametros,
+       file = paste0("ganancias", seed, ".txt"),
+       sep = "\t")
