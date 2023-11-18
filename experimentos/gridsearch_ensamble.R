@@ -126,10 +126,8 @@ dataset[foto_mes %in% PARAM$input$training, train := 1L]
 dir.create("./exp/", showWarnings = FALSE)
 dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
 
-# Establezco el Working Directory DEL EXPERIMENTO
-setwd(paste0("./exp/", PARAM$experimento, "/"))
 
-
+                                                             
 #preparo el dataset para testear
 dapply <- dataset[foto_mes == PARAM$input$future]
 dataset_test <- data.matrix(dapply[, campos_buenos, with = FALSE])
@@ -139,11 +137,14 @@ for (ni in PARAM$finalmodel$optim$num_iterations) {
   for (ff in PARAM$finalmodel$optim$feature_fraction) {
     for (md in PARAM$finalmodel$optim$min_data_in_leaf) {
       for (nl in PARAM$finalmodel$optim$num_leaves) {
-        for (lr in PPARAM$finalmodel$optim$learning_rate) {
-          dir.create(paste0("./exp/", lr,'_',nl,'_',md,'_',ff,'_',ni, "/"), showWarnings = FALSE)
+        for (lr in PARAM$finalmodel$optim$learning_rate) {
+          dir.create(paste0("./exp/", PARAM$experimento, "/",lr,"_",nl,"_",md,"_",ff,"_",ni, "/"), showWarnings = TRUE)
+        
           
           # Establezco el Working Directory DEL EXPERIMENTO
-          setwd(paste0("./exp/", PARAM$experimento, "/"))
+          setwd(paste0("./exp/gridsearch_1/", lr,"_",nl,"_",md,"_",ff,"_",ni, "/"))
+          # genero la tabla de entrega
+          tb_entrega <- dapply[, list(numero_de_cliente, foto_mes)]
 for (seed in PARAM$finalmodel$semilla) {
   # Set the seed for this iteration
   set.seed(seed)
@@ -160,7 +161,7 @@ for (seed in PARAM$finalmodel$semilla) {
                       num_iterations=ni,
                       min_data_in_leaf=md,
                       feature_fraction=ff,
-                      num_leaves=nl
+                      num_leaves=nl,
                       seed = seed)  # Update the seed for each model
   modelo <- lgb.train(
     data = dtrain,
@@ -173,21 +174,20 @@ for (seed in PARAM$finalmodel$semilla) {
   prediccion <- predict(
     modelo,
     dataset_test)
-  )
   
-  # genero la tabla de entrega
-  tb_entrega <- dapply[, list(numero_de_cliente, foto_mes)]
-  tb_entrega[, prob := prediccion]
   
-  # grabo las probabilidad del modelo
-  fwrite(tb_entrega,
-         file = paste0("prediccion_", seed, ".txt"),
-         sep = "\t"
-  )
+  #agrego el resultado de esta seed
+  tb_entrega[, paste0("prediccion_", seed) := prediccion]
+  
   
   # ordeno por probabilidad descendente
   setorder(tb_entrega, -prob)
 }
+          # grabo las probabilidad del modelo
+          fwrite(tb_entrega,
+                 file = paste0("prediccion", seed, ".txt"),
+                 sep = "\t"
+          )
       }
     }
   }
