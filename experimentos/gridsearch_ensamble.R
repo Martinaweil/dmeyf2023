@@ -195,7 +195,7 @@ for (seed in PARAM$finalmodel$semilla) {
           total_gain <- sum(tb_entrega$ganancia)
           ganancia_por_hiperparametros <- rbindlist(list(
             ganancia_por_hiperparametros,
-            data.table(parametros = paste0(lr, "_", nl, "_", md, "_", ff, "_", ni), ganancia_total = total_gain)
+            data.table(hiperparametros = paste0(lr, "_", nl, "_", md, "_", ff, "_", ni), ganancia_total = total_gain)
           ))
           
           
@@ -215,5 +215,5 @@ setwd(paste0("./exp/", PARAM$experimento, "/"))
 
 # grabo las ganancias
 fwrite(ganancia_por_hiperparametros,
-       file = paste0("ganancias", seed, ".txt"),
+       file = paste0("ganancias.txt"),
        sep = "\t")
