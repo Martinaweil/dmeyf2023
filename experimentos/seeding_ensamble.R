@@ -3,12 +3,15 @@ rm(list = ls())
 gc()
 library(data.table)
 
+experimento<-"exp_3_gs" #reemplazar con el nombre del experimento 
+
 initial_seed <- 100019
 num_seeds <- 30
 seeds_to_ensemble <- seq(initial_seed, initial_seed + num_seeds - 1)
 # Función para realizar un ensamble con un conjunto de semillas específico
 realizar_ensamble <- function(seed_indices) {
-  # Leer las predicciones que hiciste
+  # Leer las predicciones 
+  setwd(paste0("~/buckets/b1/exp/",experimento))
   seed <- seeds_to_ensemble[seed_indices[1]]  # Choose the first seed
   predicted_prob_file <- paste0("prediccion_", seed, ".txt")
   ensemble_results <- fread(predicted_prob_file, sep = "\t", header = TRUE)
@@ -16,7 +19,7 @@ realizar_ensamble <- function(seed_indices) {
   
   # Loop sobre las semillas
   for (i in 2:length(seed_indices)) {
-    setwd("~/buckets/b1/exp/exp_1")
+    setwd(paste0("~/buckets/b1/exp/",experimento))
     seed <- seeds_to_ensemble[seed_indices[i]]
     predicted_prob_file <- paste0("prediccion_", seed, ".txt")
     predicted_prob <- fread(predicted_prob_file, sep = "\t", header = TRUE)
@@ -26,14 +29,15 @@ realizar_ensamble <- function(seed_indices) {
     # Merge en base al numero_de_cliente y foto_mes
     ensemble_results <- merge(ensemble_results, predicted_prob, by = c("numero_de_cliente", "foto_mes"), all = TRUE)
     
-    # Promedio las probabilidades
-    ensemble_results[, ensemble_prob := rowMeans(.SD, na.rm = TRUE), .SDcols = grep("prob_", names(ensemble_results))]
+
+    #ensemble_results[, ensemble_prob := rowMeans(.SD, na.rm = TRUE), .SDcols = grep("prob_", names(ensemble_results))]
     
-    ensemble_results[, grep("prob_", names(ensemble_results)) := NULL]
+    #ensemble_results[, grep("prob_", names(ensemble_results)) := NULL]
   }
   
   # Guardo el resultado
-  fwrite(ensemble_results, file = "ensemble_results.txt", sep = "\t")
+  #fwrite(ensemble_results, file = "ensemble_results.txt", sep = "\t")
+  ensemble_results[, ensemble_prob := rowMeans(.SD, na.rm = TRUE), .SDcols = grep("prob_", names(ensemble_results))]
   setorder(ensemble_results, -ensemble_prob)
   
   ensemble_results[, Predicted := 0L]
@@ -44,7 +48,7 @@ realizar_ensamble <- function(seed_indices) {
   datos <- fread("./datasets/competencia_03.csv.gz", sep = ",", header = TRUE)
   datos <- datos[foto_mes == '202107']
   
-  setwd("~/buckets/b1/exp/exp_1")
+  setwd(paste0("~/buckets/b1/exp/",experimento))
   merged_data <- merge(ensemble_results, datos, by = c("foto_mes", "numero_de_cliente"), all.x = TRUE)
   merged_data <- merged_data[, c("foto_mes", "numero_de_cliente", "clase_ternaria", "Predicted"), with = FALSE]
   
@@ -55,7 +59,7 @@ realizar_ensamble <- function(seed_indices) {
   return(total_gain)
 }
 
-setwd("~/buckets/b1/exp/exp_1")
+setwd(paste0("~/buckets/b1/exp/",experimento))
 # Número de ensambles
 num_ensambles <- 10
 ensamble_results <- numeric(num_ensambles)
