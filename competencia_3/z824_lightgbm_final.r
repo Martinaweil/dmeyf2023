@@ -14,13 +14,13 @@ require("lightgbm")
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
-PARAM$experimento <- "exp_2"
+PARAM$experimento <- "comp3_2"
 
 PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
 # meses donde se entrena el modelo
-PARAM$input$training <- c(202101,202102,202103,202104,202105,202106)
-PARAM$input$future <- c(202107) # meses donde se aplica el modelo
+PARAM$input$training <- c(201903,201904,201905,201906,201907,201908,201909,201910,201911,201912,202001,202002,202010,202011,202012,202101,202102,202103,202104,202105,202106,202107)
+PARAM$input$future <- c(202109) # meses donde se aplica el modelo
 initial_seed <- 100019
 num_seeds <- 30
 seeds <- seq(initial_seed, initial_seed + num_seeds - 1)
@@ -30,11 +30,11 @@ PARAM$finalmodel$semilla <- seeds
 
 
 # hiperparametros obtenidos en las OB
-PARAM$finalmodel$optim$num_iterations <- 30
-PARAM$finalmodel$optim$learning_rate <- 1
-PARAM$finalmodel$optim$feature_fraction <- 0.8
-PARAM$finalmodel$optim$min_data_in_leaf <- 3000
-PARAM$finalmodel$optim$num_leaves <- 80
+PARAM$finalmodel$optim$num_iterations <- 194
+PARAM$finalmodel$optim$learning_rate <- 0.0735245721796227
+PARAM$finalmodel$optim$feature_fraction <- 0.924326895508541
+PARAM$finalmodel$optim$min_data_in_leaf <- 10526
+PARAM$finalmodel$optim$num_leaves <- 386
 
 
 # Hiperparametros FIJOS de  lightgbm
@@ -159,8 +159,7 @@ for (seed in PARAM$finalmodel$semilla) {
          sep = "\t"
   )
   
-  # Save the trained model for ensemble (you can choose your method of saving)
-  saveRDS(modelo, file = paste0("model_", seed, ".rds"))
+ 
 
   
   # aplico el modelo a los datos sin clase
